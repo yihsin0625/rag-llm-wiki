@@ -292,4 +292,132 @@
       <div class="grid-2">
         <div class="box">
           <h3>文字變座標：Embedding 模型</h3>
-          <p>將一段文字轉換為高維度數字
+          <p>將一段文字轉換為高維度數字向量（例如 1536 維陣列）。語意越接近的句子，在空間中的距離越近（餘弦相似度高）。</p>
+          <p style="margin-top:0.6rem; color: var(--success);">例：「手機沒電」≈「行動電話耗盡電力」</p>
+        </div>
+        <div class="box">
+          <h3>高速書櫃：向量資料庫（Vector DB）</h3>
+          <p>專門儲存向量並提供毫秒級「近似最近鄰搜尋（ANN）」的資料庫，常見工具包含 <strong>Chroma、FAISS、Pinecone、Qdrant</strong>。</p>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span class="wiki-badge">📚 Wiki 來源：[[wiki/03-embedding-vectordb.md]]</span>
+      <span>5 / 8</span>
+    </div>
+  </section>
+
+  <!-- Slide 6 -->
+  <section class="slide">
+    <div>
+      <span class="tag">05 / 關鍵技術三</span>
+      <h2>提示詞增強（Prompt Augmentation）</h2>
+      <p class="lead">撈出最相關的 Top-K 段落後，必須透過結構化 System Prompt 約束模型行為：</p>
+      <code class="block">你是一位專業助教。請【嚴格僅根據】以下提供的參考資料回答問題。
+若參考資料中沒有提及相關資訊，請直接回答「根據現有資料無法確認」，嚴禁自行猜測。
+回答時請在句末標註來源編號（例如 [來源 1]）。
+
+【參考資料】：
+[來源 1] {retrieved_chunk_1}
+[來源 2] {retrieved_chunk_2}
+
+【使用者問題】：{user_query}</code>
+    </div>
+    <div class="slide-footer">
+      <span class="wiki-badge">📚 Wiki 來源：[[wiki/04-prompt-augmentation.md]]</span>
+      <span>6 / 8</span>
+    </div>
+  </section>
+
+  <!-- Slide 7 -->
+  <section class="slide">
+    <div>
+      <span class="tag">06 / 品質與評估</span>
+      <h2>如何檢查 RAG 有沒有說謊？（RAGAS 基礎指標）</h2>
+      <p class="lead">導入 RAG 後不代表零錯誤，實務上常透過兩大核心指標進行自動化檢查：</p>
+      <div class="grid-2">
+        <div class="box">
+          <h3>1. 忠實度（Faithfulness）</h3>
+          <p>檢查<strong>「生成階段」</strong>：模型寫出的每一句話，是否都能在檢索到的參考資料中找到依據？用來抓出模型「偷渡腦補內容」。</p>
+        </div>
+        <div class="box">
+          <h3>2. 答案相關性（Answer Relevance）</h3>
+          <p>檢查<strong>「整體回應」</strong>：產出的答案是否真正切題、直接解決使用者的問題，而非答非所問或過度冗長。</p>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span class="wiki-badge">📚 Wiki 來源：[[wiki/05-hallucination-eval.md]]</span>
+      <span>7 / 8</span>
+    </div>
+  </section>
+
+  <!-- Slide 8 -->
+  <section class="slide">
+    <div>
+      <span class="tag">07 / 互動隨堂檢核</span>
+      <h2>快速自我測驗：你掌握 RAG 核心了嗎？</h2>
+      <div class="grid-2">
+        <div class="box">
+          <h3>Q1. 設定 Chunk Overlap 的主要目的是？</h3>
+          <button class="quiz-btn" onclick="checkQuiz(1, false)">A. 加快模型訓練速度</button>
+          <button class="quiz-btn" onclick="checkQuiz(1, true)">B. 避免關鍵上下文在切分邊界被切斷</button>
+          <div class="quiz-feedback" id="fb-1"></div>
+        </div>
+        <div class="box">
+          <h3>Q2. 哪個指標專門檢查模型有沒有「無中生有」？</h3>
+          <button class="quiz-btn" onclick="checkQuiz(2, true)">A. 忠實度（Faithfulness）</button>
+          <button class="quiz-btn" onclick="checkQuiz(2, false)">B. 文本切分長度（Chunk Size）</button>
+          <div class="quiz-feedback" id="fb-2"></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span class="wiki-badge">📚 Wiki 來源：[[wiki/02-chunking.md]] & [[wiki/05-hallucination-eval.md]]</span>
+      <span>8 / 8</span>
+    </div>
+  </section>
+</div>
+
+<div class="controls">
+  <button onclick="prevSlide()">← 上一頁</button>
+  <span id="counter" style="color: #94a3b8; font-size: 0.9rem;">第 1 / 8 頁（支援鍵盤 ← → 切換）</span>
+  <button onclick="nextSlide()">下一頁 →</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const progressBar = document.getElementById('progressBar');
+  const counter = document.getElementById('counter');
+  let current = 0;
+
+  function updateSlide(index) {
+    slides[current].classList.remove('active');
+    current = (index + slides.length) % slides.length;
+    slides[current].classList.add('active');
+    const pct = ((current + 1) / slides.length) * 100;
+    progressBar.style.width = pct + '%';
+    counter.textContent = `第 ${current + 1} / ${slides.length} 頁（支援鍵盤 ← → 切換）`;
+  }
+
+  function nextSlide() { updateSlide(current + 1); }
+  function prevSlide() { updateSlide(current - 1); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+    if (e.key === 'ArrowLeft') prevSlide();
+  });
+
+  function checkQuiz(qNum, isCorrect) {
+    const el = document.getElementById('fb-' + qNum);
+    if (isCorrect) {
+      el.style.color = '#34d399';
+      el.textContent = '✅ 正確！已掌握該章節核心觀念。';
+    } else {
+      el.style.color = '#fbbf24';
+      el.textContent = '⚠️ 再想一下！提示：回顧前幾頁的技術原理。';
+    }
+  }
+</script>
+</body>
+</html>
