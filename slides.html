@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG（檢索增強生成）核心原理入門教學 — LLM Wiki 知識庫產出</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-light: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #818cf8;
+      --success: #34d399;
+      --warning: #fbbf24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .progress-container {
+      width: 100%;
+      height: 6px;
+      background: #1e293b;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      width: 12.5%;
+      transition: width 0.3s ease;
+    }
+    .stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      position: relative;
+    }
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 980px;
+      min-height: 540px;
+      background: var(--card);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 20px;
+      padding: 3rem 3.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      flex-direction: column;
+      justify-content: space-between;
+      animation: fadeIn 0.35s ease;
+    }
+    .slide.active { display: flex; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .tag {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      padding: 0.35rem 0.9rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      width: fit-content;
+    }
+    h1 { font-size: 2.6rem; line-height: 1.25; margin-bottom: 1rem; }
+    h2 { font-size: 2rem; line-height: 1.3; margin-bottom: 1.25rem; color: #fff; }
+    p.lead { font-size: 1.2rem; color: var(--muted); line-height: 1.7; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+    .box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 14px;
+      padding: 1.4rem;
+    }
+    .box h3 { font-size: 1.15rem; margin-bottom: 0.6rem; color: var(--accent); }
+    .box p, .box li { font-size: 1rem; color: #cbd5e1; line-height: 1.6; }
+    ul { padding-left: 1.3rem; }
+    li { margin-bottom: 0.5rem; }
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+    }
+    .flow-step {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 1.2rem;
+      text-align: center;
+    }
+    .flow-arrow { font-size: 1.5rem; color: var(--accent); font-weight: bold; }
+    code.block {
+      display: block;
+      background: #0b1120;
+      border-left: 4px solid var(--accent-2);
+      padding: 1rem 1.2rem;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.95rem;
+      color: #e2e8f0;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      margin-top: 0.8rem;
+    }
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.15);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .wiki-badge {
+      background: rgba(129, 140, 248, 0.15);
+      color: #c7d2fe;
+      padding: 0.25rem 0.75rem;
+      border-radius: 6px;
+      font-family: monospace;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: #0b1120;
+    }
+    button {
+      background: var(--card-light);
+      color: var(--text);
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover { background: var(--accent); color: #0f172a; }
+    .quiz-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin-top: 0.6rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+    .quiz-feedback {
+      margin-top: 0.8rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+
+<div class="stage">
+  <!-- Slide 1 -->
+  <section class="slide active">
+    <div>
+      <span class="tag">新手入門教學簡報</span>
+      <h1>RAG 檢索增強生成<br>核心原理與架構指南</h1>
+      <p class="lead">給初學者的白話圖解：為什麼大型語言模型需要「外掛資料庫」？從概念、切分、向量搜尋到防幻覺一次搞懂。</p>
+      <div class="box" style="margin-top: 1.8rem;">
+        <h3>本簡報知識來源說明</h3>
+        <p>所有內容皆由自建 <strong>LLM Wiki（已 Ingest 5 篇核心技術文件）</strong> 檢索、整理並驗證生成，每頁左下角皆標註對應的 Wiki 知識條目。</p>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span class="wiki-badge">📚 Wiki 來源：[[index.md]] (5 Sources Ingested)</span>
+      <span>1 / 8</span>
+    </div>
+  </section>
+
+  <!-- Slide 2 -->
+  <section class="slide">
+    <div>
+      <span class="tag">01 / 核心概念</span>
+      <h2>為什麼需要 RAG？從「閉書考」到「開書考」</h2>
+      <p class="lead">傳統 LLM（如未連網的對話模型）僅依賴訓練時的參數記憶，面對新資訊或私有文件時容易產生「幻覺（一本正經胡說八道）」。</p>
+      <div class="grid-2">
+        <div class="box">
+          <h3>❌ 傳統 LLM：閉書考試</h3>
+          <ul>
+            <li>知識停留在訓練截止日期</li>
+            <li>不知道公司內部文件或個人筆記</li>
+            <li>忘記細節時容易自行腦補（幻覺）</li>
+          </ul>
+        </div>
+        <div class="box" style="border-color: var(--success);">
+          <h3 style="color: var(--success);">✅ RAG 架構：開書考試</h3>
+          <ul>
+            <li>回答前先翻閱外部最新知識庫</li>
+            <li>可隨時抽換、更新參考文件</li>
+            <li>答案有所本，大幅降低胡說八道</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span class="wiki-badge">📚 Wiki 來源：[[wiki/01-rag-overview.md]]</span>
+      <span>2 / 8</span>
+    </div>
+  </section>
+
+  <!-- Slide 3 -->
+  <section class="slide">
+    <div>
+      <span class="tag">02 / 運作全景</span>
+      <h2>RAG 運作的三大階段</h2>
+      <p class="lead">RAG 並非單一模型，而是一條「先建索引、再檢索、最後生成」的資料管線（Pipeline）：</p>
+      <div class="flow">
+        <div class="flow-step">
+          <h3 style="color: var(--accent);">1. 索引 (Indexing)</h3>
+          <p style="font-size:0.9rem; margin-top:0.5rem;">文件切塊 → 轉成向量 → 存入向量資料庫（離線準備）</p>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <h3 style="color: var(--accent-2);">2. 檢索 (Retrieval)</h3>
+          <p style="font-size:0.9rem; margin-top:0.5rem;">問題轉向量 → 計算語意相似度 → 撈出前 K 筆段落</p>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <h3 style="color: var(--success);">3. 生成 (Generation)</h3>
+          <p style="font-size:0.9rem; margin-top:0.5rem;">問題 + 參考段落組成 Prompt → LLM 產出精準回答</p>
+        </div>
+      </div>
+      <div class="box">
+        <p>💡 <strong>核心精神</strong>：把「記憶知識」交給資料庫，讓 LLM 專注發揮「閱讀理解與語言組織」的強項。</p>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span class="wiki-badge">📚 Wiki 來源：[[wiki/01-rag-overview.md]]</span>
+      <span>3 / 8</span>
+    </div>
+  </section>
+
+  <!-- Slide 4 -->
+  <section class="slide">
+    <div>
+      <span class="tag">03 / 關鍵技術一</span>
+      <h2>文本切分（Chunking）：為什麼不能整本書塞進去？</h2>
+      <p class="lead">動輒數萬字的 PDF 若整份丟給模型，不僅超出長度上限，更會讓關鍵資訊淹沒在雜訊中。</p>
+      <div class="grid-2">
+        <div class="box">
+          <h3>遞迴字元切分（Recursive Splitting）</h3>
+          <p>優先依照<strong>段落（\n\n）→ 換行（\n）→ 句號</strong>切分，確保每一小塊（Chunk）都保有完整的語意，不會把一句話硬生生腰斬。</p>
+        </div>
+        <div class="box">
+          <h3>重疊視窗（Chunk Overlap）</h3>
+          <p>相鄰兩塊保留 <strong>10%～20% 重疊</strong>（例如每塊 500 字、重疊 50 字）。這樣即使重點剛好落在切分邊界，也能在下一塊完整保留上下文。</p>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span class="wiki-badge">📚 Wiki 來源：[[wiki/02-chunking.md]]</span>
+      <span>4 / 8</span>
+    </div>
+  </section>
+
+  <!-- Slide 5 -->
+  <section class="slide">
+    <div>
+      <span class="tag">04 / 關鍵技術二</span>
+      <h2>向量嵌入（Embedding）與語意搜尋</h2>
+      <p class="lead">傳統 Ctrl+F 只能找「一模一樣的字」；RAG 透過 Embedding 讓電腦理解「意思相近」。</p>
+      <div class="grid-2">
+        <div class="box">
+          <h3>文字變座標：Embedding 模型</h3>
+          <p>將一段文字轉換為高維度數字
